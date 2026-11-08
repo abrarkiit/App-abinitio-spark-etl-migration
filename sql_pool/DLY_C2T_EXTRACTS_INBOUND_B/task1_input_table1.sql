@@ -1,0 +1,10 @@
+-- Extraction query for Task 1: Primary Offers
+SELECT /*+ PARALLEL(o, 4) */
+    o.OFFER_ID,
+    o.CAMPAIGN_ID,
+    o.REC_STATUS,
+    o.ERROR_FLAG,
+    TO_CHAR(o.LAST_UPD_TS, 'YYYY-MM-DD') AS LOAD_DATE
+FROM STAGE_OWNER.TBL_OFFER_PRIMARY o
+WHERE o.REC_STATUS IN ('A', 'P')
+  AND o.LAST_UPD_TS >= TO_DATE('${BATCH_DATE}', 'YYYY-MM-DD')

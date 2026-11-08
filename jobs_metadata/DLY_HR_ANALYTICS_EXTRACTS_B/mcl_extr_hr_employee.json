@@ -1,0 +1,68 @@
+{
+  "task_id": "mcl_extr_hr_employee",
+  "box_job_name": "DLY_HR_ANALYTICS_EXTRACTS_B",
+  "target_type": "file",
+  "write_mode": "overwrite",
+  "vault_secret_path": "secret/data/etl/oracle_hr",
+
+  "contract": {
+    "schema_module": "schemas.DLY_HR_ANALYTICS_EXTRACTS_B.hr_employee_schema",
+    "output_schema": "HR_EMPLOYEE_OUTPUT"
+  },
+
+  "flat_file_params": {
+    "dat_file_env": "P_EMP_DATFILE",
+    "ctl_file_env": "P_EMP_CTLFILE",
+    "delimiter": ","
+  },
+
+  "sources": [
+    {
+      "name": "IN_TBL_HR_EMPLOYEES",
+      "type": "oracle_sql",
+      "sql_file_path": "sql_pool/DLY_HR_ANALYTICS_EXTRACTS_B/hr_employee_extract.sql",
+      "partition_col": "EMPLOYEE_ID",
+      "num_partitions": 4
+    },
+    {
+      "name": "REF_LOOKUP_DEPARTMENTS",
+      "type": "oracle_table",
+      "table": "HR.DEPARTMENTS"
+    }
+  ],
+
+  "pipeline_steps": [
+    {
+      "step_id": "enrich_department_name",
+      "component": "LOOKUP",
+      "source_table": "IN_TBL_HR_EMPLOYEES",
+      "lookup_table": "REF_LOOKUP_DEPARTMENTS",
+      "target_table": "view_emp_with_dept",
+      "join_keys": ["DEPARTMENT_ID"]
+    },
+    {
+      "step_id": "filter_active_staff",
+      "component": "FILTER",
+      "source_table": "view_emp_with_dept",
+      "target_table": "view_emp_filtered",
+      "filter_condition": "SALARY >= 2500"
+    },
+    {
+      "step_id": "reformat_final_fields",
+      "component": "REFORMAT",
+      "source_table": "view_emp_filtered",
+      "target_table": "view_emp_reformatted",
+      "expressions": {
+        "EMPLOYEE_ID": "CAST(EMPLOYEE_ID AS BIGINT)",
+        "FULL_NAME": "CONCAT(TRIM(FIRST_NAME), ' ', TRIM(LAST_NAME))",
+        "EMAIL": "LOWER(CONCAT(EMAIL, '@company.com'))",
+        "PHONE_NUMBER": "PHONE_NUMBER",
+        "HIRE_DATE": "HIRE_DATE",
+        "JOB_ID": "JOB_ID",
+        "SALARY": "CAST(SALARY AS DECIMAL(10, 2))",
+        "DEPARTMENT_NAME": "COALESCE(DEPARTMENT_NAME, 'UNASSIGNED')",
+        "EXTRACT_TIMESTAMP": "current_timestamp()"
+      }
+    }
+  ]
+}

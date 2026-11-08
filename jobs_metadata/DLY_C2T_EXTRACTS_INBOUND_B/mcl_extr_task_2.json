@@ -1,0 +1,73 @@
+{
+  "task_id": "mcl_extr_task_2",
+  "box_job_name": "DLY_C2T_EXTRACTS_INBOUND_B",
+  "target_type": "file",
+  "write_mode": "overwrite",
+
+  "contract": {
+    "schema_module": "schemas.DLY_C2T_EXTRACTS_INBOUND_B.dly_c2t_box_schemas",
+    "output_schema": "TASK2_OUTPUT"
+  },
+
+  "flat_file_params": {
+    "dat_file_env": "P_TASK2_DATFILE",
+    "ctl_file_env": "P_TASK2_CTLFILE",
+    "delimiter": "|"
+  },
+
+  "sources": [
+    {
+      "name": "IN_TBL_RECOMMENDATION",
+      "type": "oracle_sql",
+      "sql_file_path": "sql_pool/DLY_C2T_EXTRACTS_INBOUND_B/task2_input_table.sql",
+      "partition_col": "RECOMMENDATION_ID",
+      "num_partitions": 8
+    },
+    {
+      "name": "REF_LOOKUP_SEGMENT",
+      "type": "oracle_table",
+      "table": "REF_OWNER.TBL_CUSTOMER_SEGMENT"
+    }
+  ],
+
+  "pipeline_steps": [
+    {
+      "step_id": "join_with_task1_extract",
+      "component": "JOIN",
+      "source_table": "IN_TBL_RECOMMENDATION",
+      "right_source_table": "t1_final_output_view",
+      "target_table": "t2_view_joined",
+      "join_keys": ["OFFER_ID"],
+      "join_type": "inner"
+    },
+    {
+      "step_id": "filter_eligible",
+      "component": "FILTER",
+      "source_table": "t2_view_joined",
+      "target_table": "t2_view_filtered",
+      "filter_condition": "ELIGIBILITY_SCORE >= 70 AND EXCLUSION_FLAG = 'N'"
+    },
+    {
+      "step_id": "reformat_fields",
+      "component": "REFORMAT",
+      "source_table": "t2_view_filtered",
+      "target_table": "t2_view_reformatted",
+      "expressions": {
+        "RECOMMENDATION_ID": "RECOMMENDATION_ID",
+        "OFFER_ID": "OFFER_ID",
+        "SEGMENT_CODE": "COALESCE(SEGMENT_CODE, 'DEFAULT')",
+        "RANKING_SCORE": "CAST(ELIGIBILITY_SCORE AS INT)",
+        "BATCH_DATE": "current_date()",
+        "PROCESSED_TIMESTAMP": "current_timestamp()"
+      }
+    },
+    {
+      "step_id": "lookup_segment",
+      "component": "LOOKUP",
+      "source_table": "t2_view_reformatted",
+      "lookup_table": "REF_LOOKUP_SEGMENT",
+      "target_table": "t2_final_output_view",
+      "join_keys": ["SEGMENT_CODE"]
+    }
+  ]
+}

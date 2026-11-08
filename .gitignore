@@ -1,0 +1,29 @@
+# Environment & Secrets
+.env
+*.pem
+*.key
+
+# Virtual Environment
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Spark / Java / Temp files
+jars/
+hadoop/
+data/outbound/*
+!data/outbound/.gitkeep
+*.dat
+*.ctl
+*.log
+metastore_db/
+derby.log
+.spark-staging/
+
+# IDE / OS specific
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini

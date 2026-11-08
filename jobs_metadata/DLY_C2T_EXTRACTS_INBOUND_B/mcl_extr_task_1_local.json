@@ -1,0 +1,79 @@
+{
+  "task_id": "mcl_extr_task_1",
+  "box_job_name": "DLY_C2T_EXTRACTS_INBOUND_B",
+  "target_type": "file",
+  "write_mode": "overwrite",
+
+  "contract": {
+    "schema_module": "schemas.DLY_C2T_EXTRACTS_INBOUND_B.dly_c2t_box_schemas",
+    "output_schema": "TASK1_OUTPUT"
+  },
+
+  "flat_file_params": {
+    "dat_file_env": "P_TASK1_DATFILE",
+    "ctl_file_env": "P_TASK1_CTLFILE",
+    "delimiter": "|"
+  },
+
+  "sources": [
+    {
+      "name": "IN_TBL_PRIMARY",
+      "type": "file",
+      "file_path_env": "SRC_PRIMARY_FILE",
+      "delimiter": "|"
+    },
+    {
+      "name": "IN_TBL_SECONDARY",
+      "type": "file",
+      "file_path_env": "SRC_SECONDARY_FILE",
+      "delimiter": "|"
+    },
+    {
+      "name": "REF_LOOKUP_CAMPAIGN",
+      "type": "file",
+      "file_path_env": "SRC_CAMPAIGN_REF_FILE",
+      "delimiter": "|"
+    }
+  ],
+
+  "pipeline_steps": [
+    {
+      "step_id": "join_inputs",
+      "component": "JOIN",
+      "source_table": "IN_TBL_PRIMARY",
+      "right_source_table": "IN_TBL_SECONDARY",
+      "target_table": "t1_view_joined",
+      "join_keys": ["OFFER_ID"],
+      "join_type": "inner"
+    },
+    {
+      "step_id": "filter_active",
+      "component": "FILTER",
+      "source_table": "t1_view_joined",
+      "target_table": "t1_view_filtered",
+      "filter_condition": "REC_STATUS = 'A' AND ERROR_FLAG = 'N'"
+    },
+    {
+      "step_id": "reformat_fields",
+      "component": "REFORMAT",
+      "source_table": "t1_view_filtered",
+      "target_table": "t1_view_reformatted",
+      "expressions": {
+        "OFFER_ID": "CAST(OFFER_ID AS BIGINT)",
+        "CAMPAIGN_ID": "CAST(CAMPAIGN_ID AS BIGINT)",
+        "OFFER_DESC": "UPPER(OFFER_DESC)",
+        "DISCOUNT_AMT": "CAST(DISCOUNT_VALUE AS DECIMAL(15, 2))",
+        "BATCH_DATE": "current_date()",
+        "PROCESSED_TIMESTAMP": "current_timestamp()"
+      }
+    },
+    {
+      "step_id": "lookup_campaign",
+      "component": "LOOKUP",
+      "source_table": "t1_view_reformatted",
+      "lookup_table": "REF_LOOKUP_CAMPAIGN",
+      "target_table": "t1_final_output_view",
+      "join_keys": ["CAMPAIGN_ID"]
+    }
+  ]
+}
