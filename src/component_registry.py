@@ -18,17 +18,55 @@ class AbInitioComponentRegistry:
     @staticmethod
     def join(df_in: DataFrame, spark: SparkSession, step_cfg: dict, transformer: Any, runtime_vars: dict) -> DataFrame:
         """Emulates Ab Initio Join component."""
-        right_view = step_cfg["right_source_table"]
-        keys = step_cfg["join_keys"]
-        j_type = step_cfg.get("join_type", "inner")
-        
-        logger.info("Executing JOIN between left stream and '%s' on %s (Type: %s)", right_view, keys, j_type)
-        df_right = spark.table(right_view)
-        
-        if step_cfg.get("is_broadcast", False):
-            df_right = F.broadcast(df_right)
+        left_table = step_cfg.get("left_source_table", step_cfg.get("source_table"))
+        right_table = step_cfg["right_source_table"]
+        join_type = step_cfg.get("join_type", "inner").lower()
 
-        return df_in.join(df_right, on=keys, how=j_type)
+        left_df = spark.table(left_table) if left_table else df_in
+        right_df = spark.table(right_table)
+
+        if step_cfg.get("is_broadcast", False):
+            right_df = F.broadcast(right_df)
+
+        if "join_condition" in step_cfg:
+            left_alias = left_df.alias("a")
+            right_alias = right_df.alias("b")
+            condition = F.expr(step_cfg["join_condition"])
+            return left_alias.join(right_alias, on=condition, how=join_type)
+
+        if "key_mapping" in step_cfg:
+            right_keys = list(step_cfg["key_mapping"].values())
+            overlap_cols = [
+                col_name for col_name in right_df.columns
+                if col_name in left_df.columns and col_name not in right_keys
+            ]
+            for col_name in overlap_cols:
+                right_df = right_df.withColumnRenamed(col_name, f"right_{col_name}")
+
+            join_condition = None
+            for left_col, right_col in step_cfg["key_mapping"].items():
+                clause = left_df[left_col] == right_df[right_col]
+                join_condition = clause if join_condition is None else join_condition & clause
+
+            return left_df.join(right_df, on=join_condition, how=join_type)
+
+        if "join_keys" in step_cfg:
+            keys = step_cfg["join_keys"]
+            if isinstance(keys, str):
+                keys = [keys]
+
+            overlap_cols = [
+                col_name for col_name in right_df.columns
+                if col_name in left_df.columns and col_name not in keys
+            ]
+            for col_name in overlap_cols:
+                right_df = right_df.withColumnRenamed(col_name, f"right_{col_name}")
+
+            return left_df.join(right_df, on=keys, how=join_type)
+
+        raise ValueError(
+            f"JOIN step '{step_cfg.get('step_id')}' requires 'join_keys', 'key_mapping', or 'join_condition'."
+        )
 
     @staticmethod
     def filter_by_expression(df_in: DataFrame, spark: SparkSession, step_cfg: dict, transformer: Any, runtime_vars: dict) -> DataFrame:
