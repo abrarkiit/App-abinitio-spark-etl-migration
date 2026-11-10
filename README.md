@@ -1,4 +1,4 @@
-# App-1oms-spark-etl
+# App-abinitio-spark-etl-migration
 
 Enterprise PySpark framework modernizing legacy Ab Initio Co>Operating System artifacts into modular Spark pipelines.
 
